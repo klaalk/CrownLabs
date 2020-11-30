@@ -1,0 +1,6 @@
+apiVersion: tenant.crownlabs.polito.it/v1alpha1
+kind: Workspace
+metadata:
+  name: cloud
+spec:
+  prettyName: Cloud computing

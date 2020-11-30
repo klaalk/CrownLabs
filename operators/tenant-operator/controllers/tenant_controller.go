@@ -17,12 +17,14 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
+
 	"github.com/go-logr/logr"
+	tenantv1alpha1 "github.com/netgroup-polito/CrownLabs/operators/tenant-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	tenantv1alpha1 "github.com/netgroup-polito/CrownLabs/operators/tenant-operator/api/v1alpha1"
 )
 
 // TenantReconciler reconciles a Tenant object
@@ -39,7 +41,7 @@ func (r *TenantReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// ctx := context.Background()
 	// log := r.Log.WithValues("tenant", req.NamespacedName)
 
-	// log.Info(fmt.Sprintf("%s has been created", req.Name))
+	klog.Info(fmt.Sprintf("%s has been created", req.Name))
 
 	// var tenant tenantv1alpha1.Tenant
 	// r.Get(ctx, req.NamespacedName, &tenant)

@@ -22,14 +22,16 @@ import (
 	"os"
 
 	"github.com/Nerzal/gocloak/v7"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
 	tenantv1alpha1 "github.com/netgroup-polito/CrownLabs/operators/tenant-operator/api/v1alpha1"
 	"github.com/netgroup-polito/CrownLabs/operators/tenant-operator/controllers"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/klog"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -46,6 +48,7 @@ func init() {
 }
 
 func main() {
+	klog.Info("HELLO")
 	var metricsAddr string
 	var enableLeaderElection bool
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -60,6 +63,14 @@ func main() {
 	kcAdminUser := takeEnvVar("KEYCLOAK_ADMIN_USER")
 	kcAdminPsw := takeEnvVar("KEYCLOAK_ADMIN_PSW")
 
+	// la go routine parte allo startup
+	// prende il token e lo salva nel secret
+	// ogni tot controlla il token e in caso lo refresha
+
+	// informer sul secret che triggera la routine per cambiare il token dela struct dei reconciler
+	// config := ctrl.GetConfigOrDie()
+	// clientset, err := kubernetes.NewForConfigOrDie()
+
 	kcClient := gocloak.NewClient(kcURL)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -73,6 +84,17 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+	klog.Info("HELLO")
+
+	// k8sClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	// kcSecret, err := k8sClient.CoreV1().Secrets("").Get("keycloakSecret", metav1.GetOptions{})
+	// if err != nil {
+	// 	klog.Error("Error when getting keycloak secret")
+	// 	klog.Fatal(err)
+	// } else {
+	// 	klog.Info(kcSecret)
+	// }
+
 	token, kcErr := kcClient.LoginAdmin(context.Background(), kcAdminUser, kcAdminPsw, "master")
 
 	if kcErr != nil {
@@ -104,6 +126,19 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
+	var kcSecret v1.Secret
+	kcSecretLookUpKey := types.NamespacedName{
+		Name:      "keycloakSecret",
+		Namespace: "",
+	}
+	k8sClient := mgr.GetClient()
+	if err := k8sClient.Get(context.Background(), kcSecretLookUpKey, &kcSecret); err != nil {
+		klog.Error("Error when getting keycloak secret")
+		klog.Fatal(err)
+	}
+	klog.Info(kcSecret)
+
 }
 
 func takeEnvVar(s string) (ret string) {

@@ -44,7 +44,7 @@ type WorkspaceReconciler struct {
 func (r *WorkspaceReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 
-	klog.Info("HELLOOOO")
+	// fare un informer che controlla
 
 	CheckAndRenewToken(ctx, r.KcClient, &r.KcToken)
 	token := r.KcToken.AccessToken
@@ -93,6 +93,11 @@ func (r *WorkspaceReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	if err := createKcRolesForWorkspace(ctx, r.KcClient, token, "crownlabs", targetClientID, ws.Name); err != nil {
 		return ctrl.Result{}, err
+	} else {
+		if err := r.Status().Update(ctx, &ws); err != nil {
+			klog.Error(err, "Unable to update status")
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{}, nil
 }
@@ -127,7 +132,6 @@ func createKcRolesForWorkspace(ctx context.Context, kcClient gocloak.GoCloak, to
 }
 
 func deleteWorkspaceRoles(ctx context.Context, kcClient gocloak.GoCloak, token string, targetClientID string, wsName string) error {
-
 	userRoleName := fmt.Sprintf("workspace-%s:user", wsName)
 	if err := kcClient.DeleteClientRole(ctx, token, "crownlabs", targetClientID, userRoleName); err != nil {
 		klog.Error("Could not delete user role")
