@@ -3,4 +3,4 @@ kind: Workspace
 metadata:
   name: swnet
 spec:
-  prettyName: Software Networking
+  prettyName: Software networking
