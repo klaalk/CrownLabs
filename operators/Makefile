@@ -46,4 +46,6 @@ endif
 
 run-tenant: generate fmt vet manifests
 	go run cmd/tenant-operator/main.go
-	
+
+test-tenant: 
+	cd pkg/controllers && go test -v ./... -coverprofile coverage.out && cd ../.. 

@@ -38,7 +38,7 @@ type WorkspaceStatus struct {
 
 	Namespace NameCreated `json:"namespace,omitempty"`
 
-	Subscriptions map[string]SubscriptionStatus `json:"subscription,omitempty"`
+	Subscriptions map[string]SubscriptionStatus `json:"subscriptions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -54,7 +54,7 @@ spec:
                 required:
                 - created
                 type: object
-              subscription:
+              subscriptions:
                 additionalProperties:
                   description: SubscriptionStatus is an enum for the status of a subscription to a service
                   enum:
