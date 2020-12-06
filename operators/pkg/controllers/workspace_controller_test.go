@@ -23,6 +23,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	crownlabsv1alpha1 "github.com/netgroup-polito/CrownLabs/operators/api/v1alpha1"
@@ -34,7 +35,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
@@ -49,87 +49,73 @@ create the CronJob.
 var _ = Describe("Workspace controller", func() {
 
 	// Define utility constants for object names and testing timeouts/durations and intervals.
-	const (
-		WSName       = "test-workspace"
+	var (
+		WSName       = fmt.Sprintf("test-%d", time.Now().Unix())
 		WSNamespace  = ""
 		WSPrettyName = "Workspace for testing"
-		NSName       = "workspace-test-workspace"
+		NSName       = fmt.Sprintf("workspace-%s", WSName)
 		NSNamespace  = ""
 
 		timeout  = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 
-	ctx := context.Background()
-
-	ws := &crownlabsv1alpha1.Workspace{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "crownlabs.polito.it/v1alpha1",
-			Kind:       "Workspace",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      WSName,
-			Namespace: WSNamespace,
-		},
-		Spec: crownlabsv1alpha1.WorkspaceSpec{
-			PrettyName: WSPrettyName,
-		},
-	}
-
 	Context("Workspace controller", func() {
-
-		BeforeEach(func() {
+		It("Should create the related resources when creating a workspace", func() {
 			By("By creating a workspace")
+			ctx := context.Background()
+			ws := &crownlabsv1alpha1.Workspace{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "crownlabs.polito.it/v1alpha1",
+					Kind:       "Workspace",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      WSName,
+					Namespace: WSNamespace,
+				},
+				Spec: crownlabsv1alpha1.WorkspaceSpec{
+					PrettyName: WSPrettyName,
+				},
+			}
 			Expect(k8sClient.Create(ctx, ws)).Should(Succeed())
 
-			By("By checking the workspace has been created")
+			By("By checking that the workspace has been created")
 
 			wsLookupKey := types.NamespacedName{Name: WSName, Namespace: WSNamespace}
 			createdWS := &crownlabsv1alpha1.Workspace{}
 
 			doesEventuallyExists(ctx, wsLookupKey, createdWS, BeTrue(), timeout, interval)
 
-			By("By checking the workspace has the correct name")
+			By("By checking that the workspace has the correct name")
 			Expect(createdWS.Spec.PrettyName).Should(Equal(WSPrettyName))
 
-		})
-
-		It("Should create the related namespace when creating a workspace", func() {
-
-			By("By checking the corresponding namespace has been created")
+			By("By checking that the corresponding namespace has been created")
 
 			nsLookupKey := types.NamespacedName{Name: NSName, Namespace: NSNamespace}
 			createdNS := &v1.Namespace{}
 
 			doesEventuallyExists(ctx, nsLookupKey, createdNS, BeTrue(), timeout, interval)
 
-			By("By checking the corresponding namespace has a controller reference pointing to the workspace")
+			By("By checking that the corresponding namespace has a controller reference pointing to the workspace")
 
 			Expect(createdNS.OwnerReferences).Should(ContainElement(MatchFields(IgnoreExtras, Fields{"Name": Equal(WSName)})))
 			Expect(createdNS.Labels).Should(HaveKeyWithValue("crownlabs.polito.it/type", "workspace"))
 
+			By("By checking that the keycloak roles for the user and the admin have been created")
+
+			userKcRole := fmt.Sprintf("workspace-%s:user", WSName)
+			adminKcRole := fmt.Sprintf("workspace-%s:admin", WSName)
+			targetClientID, err := GetClientID(context.Background(), kcClient, kcToken.AccessToken, targetKcRealm, "k8s")
+			Expect(err).ToNot(HaveOccurred())
+			role, _ := kcClient.GetClientRole(ctx, kcToken.AccessToken, targetKcRealm, targetClientID, userKcRole)
+			Expect(*role.Name).To(Equal(userKcRole))
+			role, _ = kcClient.GetClientRole(ctx, kcToken.AccessToken, targetKcRealm, targetClientID, adminKcRole)
+			Expect(*role.Name).To(Equal(adminKcRole))
+
+			k8sClient.Delete(ctx, ws)
+
 		})
 
-		// It("Should create the related keycloak roles when creating a workspace", func() {
-		// 	By("By checking the corresponding namespace has been created")
-
-		// 	nsLookupKey := types.NamespacedName{Name: NSName, Namespace: NSNamespace}
-		// 	createdNS := &v1.Namespace{}
-
-		// 	doesEventuallyExists(ctx, nsLookupKey, createdNS, BeTrue(), timeout, interval)
-
-		// 	By("By checking the corresponding namespace has a controller reference pointing to the workspace")
-
-		// 	Expect(createdNS.OwnerReferences).Should(ContainElement(MatchFields(IgnoreExtras, Fields{"Name": Equal(WSName)})))
-		// 	Expect(createdNS.Labels).Should(HaveKeyWithValue("crownlabs.polito.it/type", "workspace"))
-
-		// })
-
-		AfterEach(func() {
-			if err := k8sClient.Delete(ctx, ws); err != nil {
-				klog.Error(err, "error when deleting the workspace")
-			}
-		})
 	})
 
 })

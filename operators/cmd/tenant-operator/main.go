@@ -65,81 +65,90 @@ func main() {
 		os.Exit(1)
 	}
 
-	kcURL := takeEnvVar("KEYCLOAK_URL")
-	kcAdminUser := takeEnvVar("KEYCLOAK_ADMIN_USER")
-	kcAdminPsw := takeEnvVar("KEYCLOAK_ADMIN_PSW")
-	targetKcRealm := takeEnvVar("KEYCLOAK_TARGET_REALM")
-	kcClient := gocloak.NewClient(kcURL)
-	token, kcErr := kcClient.LoginAdmin(context.Background(), kcAdminUser, kcAdminPsw, "master")
-	if kcErr != nil {
-		klog.Error(kcErr, "unable to login as admin on keycloak")
-		os.Exit(1)
-	}
+	kcURL := TakeEnvVar("KEYCLOAK_URL")
+	kcAdminUser := TakeEnvVar("KEYCLOAK_ADMIN_USER")
+	kcAdminPsw := TakeEnvVar("KEYCLOAK_ADMIN_PSW")
+	kcClient, kcToken := prepareKcClient(kcURL, kcAdminUser, kcAdminPsw)
 
-	kcRenewTokenTicker := time.NewTicker(5 * time.Second)
-	// don't know if the following line is needed, probably not
-	defer kcRenewTokenTicker.Stop()
-	go func() {
-		for {
-			<-kcRenewTokenTicker.C
-			CheckAndRenewToken(context.Background(), kcClient, token, kcAdminUser, kcAdminPsw, 5*time.Minute)
-		}
-	}()
+	go checkAndRenewTokenPeriodically(context.Background(), kcClient, kcToken, kcAdminUser, kcAdminPsw, 2*time.Minute, 5*time.Minute)
+
+	targetKcRealm := TakeEnvVar("KEYCLOAK_TARGET_REALM")
 
 	if err = (&controllers.TenantReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		klog.Error(err, "unable to create controller", "controller", "Tenant")
+		klog.Error(err, "Unable to create controller for Tenant")
 		os.Exit(1)
 	}
 	if err = (&controllers.WorkspaceReconciler{
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		KcClient:      kcClient,
-		KcToken:       token,
+		KcToken:       kcToken,
 		TargetKcRealm: targetKcRealm,
 	}).SetupWithManager(mgr); err != nil {
-		klog.Error(err, "unable to create controller", "controller", "Workspace")
+		klog.Error(err, "unable to create controller for Workspace")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
-	klog.Info("starting manager")
+	klog.Info("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		klog.Error(err, "problem running manager")
+		klog.Error(err, "Problem running manager")
 		os.Exit(1)
 	}
 
 }
 
-func takeEnvVar(s string) (ret string) {
+// TakeEnvVar wrapper around og.GetEnv to better handle error in case env var is not specified
+func TakeEnvVar(s string) (ret string) {
 	ret = os.Getenv(s)
 	if ret == "" {
-		klog.Infof("missing required env %s", s)
+		klog.Infof("Missing required env %s", s)
 		os.Exit(1)
 	}
 	return ret
 }
 
-// CheckAndRenewToken checks if the token is expired, if so it renews it
-func CheckAndRenewToken(ctx context.Context, kcClient gocloak.GoCloak, token *gocloak.JWT, kcAdminUser string, kcAdminPsw string, expireLimit time.Duration) error {
-	_, claims, err := kcClient.DecodeAccessToken(ctx, token.AccessToken, "master", "")
-	if err != nil {
-		klog.Error(err, "problems when decoding token")
-		return err
-	}
-	tokenExpiresIn := time.Unix(int64((*claims)["exp"].(float64)), 0).Sub(time.Now())
+// checkAndRenewTokenPeriodically checks every intervalCheck if the token is about in less than expireLimit or is already expired, if so it renews it
+func checkAndRenewTokenPeriodically(ctx context.Context, kcClient gocloak.GoCloak, token *gocloak.JWT, kcAdminUser string, kcAdminPsw string, intervalCheck time.Duration, expireLimit time.Duration) {
 
-	if tokenExpiresIn < expireLimit {
-		newToken, err := kcClient.LoginAdmin(ctx, kcAdminUser, kcAdminPsw, "master")
+	kcRenewTokenTicker := time.NewTicker(intervalCheck)
+	for {
+		// wait intervalCheck
+		<-kcRenewTokenTicker.C
+		// take expiration date of token from tokenJWT claims
+		_, claims, err := kcClient.DecodeAccessToken(ctx, token.AccessToken, "master", "")
 		if err != nil {
-			klog.Error(err, "Error when renewing token")
-			return err
+			klog.Error(err, "Error when decoding token")
+			os.Exit(1)
 		}
-		*token = *newToken
-		klog.Info("Keycloak token renewed")
-		return nil
+		// convert expiration time in usable time
+		tokenExpiresIn := time.Unix(int64((*claims)["exp"].(float64)), 0).Sub(time.Now())
+
+		// if token is about to expire, renew it
+		if tokenExpiresIn < expireLimit {
+			newToken, err := kcClient.LoginAdmin(ctx, kcAdminUser, kcAdminPsw, "master")
+			if err != nil {
+				klog.Error(err, "Error when renewing token")
+				os.Exit(1)
+			}
+			*token = *newToken
+			klog.Info("Keycloak token renewed")
+		}
 	}
-	return nil
+}
+
+// prepareKcClient sets up a keycloak client with the specififed parameters and performs the first login
+// function is exported to be used in tests
+func prepareKcClient(kcURL, kcAdminUser, kcAdminPsw string) (gocloak.GoCloak, *gocloak.JWT) {
+
+	kcClient := gocloak.NewClient(kcURL)
+	token, kcErr := kcClient.LoginAdmin(context.Background(), kcAdminUser, kcAdminPsw, "master")
+	if kcErr != nil {
+		klog.Error(kcErr, "Unable to login as admin on keycloak")
+		os.Exit(1)
+	}
+	return kcClient, token
 }

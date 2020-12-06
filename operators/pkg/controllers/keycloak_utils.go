@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"strings"
 
 	gocloak "github.com/Nerzal/gocloak/v7"
 	"k8s.io/klog"
@@ -34,9 +33,10 @@ func GetClientID(ctx context.Context, kcClient gocloak.GoCloak, token string, re
 func createKcRole(ctx context.Context, kcClient gocloak.GoCloak, token string, realmName string, targetClientID string, newRoleName string) error {
 	// check if keycloak role already esists
 
-	_, err := kcClient.GetClientRole(ctx, token, realmName, targetClientID, newRoleName)
-	if err != nil && strings.Contains(err.Error(), "404 Not Found: Could not find role") {
-		// error corresponds to "not found"
+	role, err := kcClient.GetClientRole(ctx, token, realmName, targetClientID, newRoleName)
+
+	if err != nil && role == nil {
+		// role didn't exist
 		// need to create new role
 		klog.Infof("Role didn't exist %s", newRoleName)
 		tr := true

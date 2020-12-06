@@ -48,9 +48,9 @@ func (r *WorkspaceReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 
 	var ws crownlabsv1alpha1.Workspace
-	token := r.KcToken.AccessToken
+	accToken := r.KcToken.AccessToken
 	targetRealm := r.TargetKcRealm
-	targetClientID, err := GetClientID(ctx, r.KcClient, token, targetRealm, "k8s")
+	targetClientID, err := GetClientID(ctx, r.KcClient, accToken, targetRealm, "k8s")
 	if err != nil {
 		klog.Error(err, "Error when getting client id for k8s")
 		return ctrl.Result{}, err
@@ -59,7 +59,7 @@ func (r *WorkspaceReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.Get(ctx, req.NamespacedName, &ws); err != nil {
 		// reconcile was triggered by a delete request
 		klog.Infof("Workspace %s deleted", req.Name)
-		if err := deleteWorkspaceRoles(ctx, r.KcClient, token, targetRealm, targetClientID, req.Name); err != nil {
+		if err := deleteWorkspaceRoles(ctx, r.KcClient, accToken, targetRealm, targetClientID, req.Name); err != nil {
 			klog.Errorf("Error when deleting roles of workspace %s", req.NamespacedName)
 			klog.Error(err)
 			return ctrl.Result{}, err
@@ -94,7 +94,7 @@ func (r *WorkspaceReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ws.Status.Namespace.Created = true
 	ws.Status.Namespace.Name = nsName
 
-	if err := createKcRolesForWorkspace(ctx, r.KcClient, token, targetRealm, targetClientID, ws.Name); err != nil {
+	if err := createKcRolesForWorkspace(ctx, r.KcClient, accToken, targetRealm, targetClientID, ws.Name); err != nil {
 		if ws.Status.Subscriptions == nil {
 			ws.Status.Subscriptions = make(map[string]crownlabsv1alpha1.SubscriptionStatus)
 		}
