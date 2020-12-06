@@ -3,6 +3,7 @@ module github.com/netgroup-polito/CrownLabs/operators
 go 1.15
 
 require (
+	github.com/Nerzal/gocloak/v7 v7.10.0
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/go-logr/logr v0.3.0
 	github.com/go-logr/zapr v0.3.0 // indirect
