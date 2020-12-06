@@ -49,11 +49,11 @@ var _ = Describe("Workspace controller", func() {
 
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
-		WSName       = "test-workspace"
-		WSNamespace  = ""
-		WSPrettyName = "Workspace for testing"
-		NSName       = "workspace-test-workspace"
-		NSNamespace  = ""
+		wsName       = "test-workspace"
+		wsNamespace  = ""
+		wsPrettyName = "Workspace for testing"
+		nsName       = "workspace-test-workspace"
+		nsNamespace  = ""
 
 		timeout  = time.Second * 10
 		interval = time.Millisecond * 250
@@ -69,36 +69,36 @@ var _ = Describe("Workspace controller", func() {
 					Kind:       "Workspace",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      WSName,
-					Namespace: WSNamespace,
+					Name:      wsName,
+					Namespace: wsNamespace,
 				},
 				Spec: crownlabsv1alpha1.WorkspaceSpec{
-					PrettyName: WSPrettyName,
+					PrettyName: wsPrettyName,
 				},
 			}
 			Expect(k8sClient.Create(ctx, ws)).Should(Succeed())
 
 			By("By checking the workspace has been created")
 
-			wsLookupKey := types.NamespacedName{Name: WSName, Namespace: WSNamespace}
-			createdWS := &crownlabsv1alpha1.Workspace{}
+			wsLookupKey := types.NamespacedName{Name: wsName, Namespace: wsNamespace}
+			createdWs := &crownlabsv1alpha1.Workspace{}
 
-			doesEventuallyExists(ctx, wsLookupKey, createdWS, BeTrue(), timeout, interval)
+			doesEventuallyExists(ctx, wsLookupKey, createdWs, BeTrue(), timeout, interval)
 
 			By("By checking the workspace has the correct name")
-			Expect(createdWS.Spec.PrettyName).Should(Equal(WSPrettyName))
+			Expect(createdWs.Spec.PrettyName).Should(Equal(wsPrettyName))
 
 			By("By checking the corresponding namespace has been created")
 
-			nsLookupKey := types.NamespacedName{Name: NSName, Namespace: NSNamespace}
-			createdNS := &v1.Namespace{}
+			nsLookupKey := types.NamespacedName{Name: nsName, Namespace: nsNamespace}
+			createdNs := &v1.Namespace{}
 
-			doesEventuallyExists(ctx, nsLookupKey, createdNS, BeTrue(), timeout, interval)
+			doesEventuallyExists(ctx, nsLookupKey, createdNs, BeTrue(), timeout, interval)
 
 			By("By checking the corresponding namespace has a controller reference pointing to the workspace")
 
-			Expect(createdNS.OwnerReferences).Should(ContainElement(MatchFields(IgnoreExtras, Fields{"Name": Equal(WSName)})))
-			Expect(createdNS.Labels).Should(HaveKeyWithValue("crownlabs.polito.it/type", "workspace"))
+			Expect(createdNs.OwnerReferences).Should(ContainElement(MatchFields(IgnoreExtras, Fields{"Name": Equal(wsName)})))
+			Expect(createdNs.Labels).Should(HaveKeyWithValue("crownlabs.polito.it/type", "workspace"))
 
 		})
 	})
@@ -110,5 +110,4 @@ func doesEventuallyExists(ctx context.Context, nsLookupKey types.NamespacedName,
 		err := k8sClient.Get(ctx, nsLookupKey, createdNS)
 		return err == nil
 	}, timeout, interval).Should(expectedStatus)
-
 }
